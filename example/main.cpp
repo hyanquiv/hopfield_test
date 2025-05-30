@@ -1,57 +1,73 @@
-#include "hopfield.h"
-#include "mnist/mnist_reader.hpp"
+#include <iostream>
 #include <unordered_map>
 #include <set>
+#include <vector>
+#include "mnist/mnist_reader_less.hpp"
+#include "hopfield.h"
 
-std::vector<int> binarize_image(const std::vector<uint8_t>& img) {
-    std::vector<int> binary(img.size());
-    for (size_t i = 0; i < img.size(); ++i) {
-        binary[i] = img[i] > 127 ? 1 : -1;
+std::vector<int> binarize(const std::vector<uint8_t>& image) {
+    std::vector<int> binary(image.size());
+    for (size_t i = 0; i < image.size(); ++i) {
+        binary[i] = image[i] > 127 ? 1 : -1;
     }
     return binary;
 }
 
+void print_image(const std::vector<int>& img) {
+    for (size_t i = 0; i < img.size(); ++i) {
+        std::cout << (img[i] > 0 ? "#" : ".");
+        if ((i + 1) % 28 == 0)
+            std::cout << '\n';
+    }
+}
+
 int main() {
-    const size_t img_size = 28 * 28;
+    constexpr size_t image_size = 28 * 28;
 
-    // Cargar Fashion-MNIST desde el directorio
-    auto dataset = mnist::read_dataset<std::vector, std::vector, uint8_t, uint8_t>("data");
-    std::cout << "Train size: " << dataset.training_images.size() << std::endl;
+    // Cargar el dataset usando el reader "less"
+    auto training_images = mnist::read_training_images<>();
+    auto training_labels = mnist::read_training_labels<>();
+    auto test_images = mnist::read_test_images<>();
+    auto test_labels = mnist::read_test_labels<>();
 
-    HopfieldNetwork network(img_size);
+    std::cout << "Datos cargados: " << training_images.size() << " imágenes de entrenamiento.\n";
 
-    // Seleccionar 1 imagen por clase (0-9)
-    std::unordered_map<uint8_t, std::vector<int>> patterns;
-    std::set<uint8_t> classes_found;
+    // Construir red Hopfield
+    HopfieldNetwork net(image_size);
 
-    for (size_t i = 0; i < dataset.training_images.size(); ++i) {
-        uint8_t label = dataset.training_labels[i];
-        if (classes_found.find(label) == classes_found.end()) {
-            patterns[label] = binarize_image(dataset.training_images[i]);
-            classes_found.insert(label);
-            if (classes_found.size() == 10) break;
+    // Tomar un patrón por clase
+    std::unordered_map<uint8_t, std::vector<int>> patrones;
+    std::set<uint8_t> clases_encontradas;
+
+    for (size_t i = 0; i < training_images.size(); ++i) {
+        uint8_t etiqueta = training_labels[i];
+        if (clases_encontradas.count(etiqueta) == 0) {
+            patrones[etiqueta] = binarize(training_images[i]);
+            clases_encontradas.insert(etiqueta);
+            if (clases_encontradas.size() == 10) break;
         }
     }
 
-    // Entrenar con 10 patrones
-    std::vector<std::vector<int>> pattern_list;
-    for (auto it = patterns.begin(); it != patterns.end(); ++it) {
-        const uint8_t& label = it->first;
-        const std::vector<int>& pattern = it->second;
-        pattern_list.push_back(pattern);
+    std::vector<std::vector<int>> lista_patrones;
+    for (auto& [label, pattern] : patrones) {
+        lista_patrones.push_back(pattern);
     }
-    network.train(pattern_list);
 
-    // Probar recuperación
-    auto test_img = binarize_image(dataset.test_images[0]);
-    auto recovered = network.recall(test_img);
+    net.train(lista_patrones);
+    std::cout << "Red entrenada con 10 patrones.\n";
 
-    // Mostrar diferencia entre imagen original y recuperada (opcional)
-    int diff = 0;
-    for (size_t i = 0; i < img_size; ++i) {
-        if (test_img[i] != recovered[i]) ++diff;
-    }
-    std::cout << "Diferencias tras recuperación: " << diff << " de " << img_size << std::endl;
+    // Usar una imagen de test como entrada
+    size_t test_idx = 0;
+    auto imagen_original = binarize(test_images[test_idx]);
+    auto imagen_recuperada = net.recall(imagen_original);
+
+    std::cout << "\nImagen original:\n";
+    print_image(imagen_original);
+
+    std::cout << "\nImagen recuperada:\n";
+    print_image(imagen_recuperada);
 
     return 0;
 }
+
+

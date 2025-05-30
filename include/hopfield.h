@@ -24,16 +24,16 @@ public:
         }
     }
 
-    std::vector<int> recall(const std::vector<int>& input, int max_iterations = 10) {
+    std::vector<int> recall(const std::vector<int>& input, int iterations = 5) {
         std::vector<int> state = input;
 
-        for (int it = 0; it < max_iterations; ++it) {
+        for (int it = 0; it < iterations; ++it) {
             for (size_t i = 0; i < size; ++i) {
                 int sum = 0;
                 for (size_t j = 0; j < size; ++j) {
                     sum += weights[i][j] * state[j];
                 }
-                state[i] = (sum >= 0) ? 1 : -1;
+                state[i] = sum >= 0 ? 1 : -1;
             }
         }
 
